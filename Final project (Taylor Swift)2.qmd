@@ -1,0 +1,206 @@
+---
+title: "Taylor Swift is Goated"
+author: Kelson Jensen, Brady Heinig, Riley Williams, Summer Price
+format: 
+  html: 
+    embed-resources: true
+editor: visual
+---
+
+## Import
+
+```{r}
+#| eval: false
+library(tidyverse)
+tuesdata <- tidytuesdayR::tt_load('2023-10-17')
+taylor_album_songs <- tuesdata$taylor_album_songs
+taylor_all_songs <- tuesdata$taylor_all_songs
+taylor_albums <- tuesdata$taylor_albums
+
+```
+
+We used python packages in order to web scrape the necessary information for this project. That file can be found [here](https://github.com/brady-heinig/tswift/blob/main/tswift_scrape.ipynb "Link to Web scraping Notebook")
+
+## Tidy
+
+```{r}
+#| eval: false
+all <- left_join(taylor_album_songs, taylor_albums, taylor_all_songs, by="album_name")
+View(all)
+
+```
+
+## Transform
+
+```{r}
+#| eval: false
+#created a new data set mutating categorical variables to be either true or false arguments
+all.new <-all |>
+select(track_name, album_name, album_release.x, duration_ms, acousticness,energy,danceability, explicit, featuring)|>
+mutate(explicit = as.logical(explicit))|>
+mutate(featuring = !is.na(featuring))
+View(all.new)
+#Web scraped data set and merge two data sets
+TaylorTidyData2 <- read.csv("TaylorTidyData2.csv")
+swiftstreams <- read.csv("swiftstreams.csv")
+#Merge the two tables together
+final_table <- merge(TaylorTidyData2, swiftstreams, by.x = "track_name", by.y = "Song.Name", all = FALSE)
+#Rename columns to match r best practice
+names(final_table)[names(final_table) == "Total.Streams"] <- "total_streams"
+names(final_table)[names(final_table) == "Daily.Streams"] <- "daily_streams"
+#Make stream columns into numeric
+final_table <- final_table  |>
+mutate(total_streams = as.numeric(gsub(",","",total_streams))) |>
+mutate(daily_streams = as.numeric(gsub(",","",daily_streams)))
+final_dataset <- final_table[order(-final_table$total_streams), ]
+
+```
+
+```{r}
+#| echo: false
+final_dataset <- read.csv('final_dataset.csv')
+```
+
+## Visualize
+
+```{r}
+library(ggplot2)
+swift <- final_dataset
+swift20 <- head(swift, 15)
+ggplot(swift20, aes(x=track_name, y = total_streams, color= "black", fill = album_name))+
+  geom_bar(stat="identity")+
+  labs(x = "Song Name",
+       y= "# of Streams", 
+       title = "Most Streamed Songs")
+
+```
+
+This is a simple graph that shows what songs are the most popular. The interesting part about this graph is the number of the top 15 songs that are from the 1989 album. 4/15 of the songs are from the album 1989. There are two other albums with three songs in the top 15 but no other albums have 4.
+
+```{r}
+#| warning: false
+ggplot(swift, aes(x = energy, y = total_streams)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~album_name) +
+  labs(
+    y = "Total Streams",
+    x = "Energy",
+    title = "Total Streams based on Energy"
+  )
+```
+
+Looking at this graph we can see a few things. One is that there is a small correlation based on higher energy there is more total streams. This being said there is such a small correlation in the majority of albums, however, there are some albums where this holds true to a greater extent such as the album "Lover."
+
+```{r}
+#| warning: false
+##Duration and total number of streams plot
+ggplot(swift, aes(x = duration_ms, y = total_streams)) +
+  geom_point() +
+  geom_smooth(method = "loess", formula = y ~ x, span = 0.6) +
+  scale_y_continuous(label = scales::comma, limits = c(0, 1900000000)) +
+  labs(x = "Duration",
+       y = "Number of Streams",
+       title = "Total Number of Streams and Duration",
+       caption="Songs that average from 175,000 to 225,000 will result in the highest total number of streams."
+       )
+```
+
+In finding the correlation between the total number of streams and duration of each song, it was discovered that as the duration of the song increased, the total number of streams would decrease. The longest songs have the lowest amount of streams. However, it did not reflect as the shortest songs produced the highest amount of streams.Songs that ranged from 175,000 to 225,000 duration displayed the highest number of streams. In order for Taylor Swift to maximize on number of Spotify streams, she must stay within a range of 175,000 to 225,000 ms duration.
+
+```{r}
+#| warning: false
+##Violin with dance and popularity 
+library(tidyr)
+library(dplyr)
+ggplot(swift, aes(x=album_name, y=danceability, fill=album_name)) + 
+  geom_violin()+
+scale_y_continuous(label = scales::comma, limits = c(0, 1))+
+  labs(x="Album",
+       y="Danceability",
+       color = "Album Name")
+```
+
+In comparing danceability and song album, we discovered that some albums had high versatility and some remained the same danceability levels through the album. Albums like folklore and Lover had the highest range of diversity. Both displayed the highest danceability for songs and also the lowest. Red (Taylor's Version) and reputation resulted in moderately high danceability throughout the entire album. This results were expected knowing Taylor Swift's genre attracts youthful pop music lovers.
+
+```{r}
+#| warning: false
+swift2 <- swift|>
+  mutate(total_streams2 = total_streams/1000000)|>
+  mutate(daily_streams2 = total_streams/1000000)
+
+library(ggridges)
+library(ggplot2)
+library(viridis)
+library(hrbrthemes)
+
+# Plot
+ggplot(swift2, aes(x = total_streams2, y = album_name, fill = ..y..)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01) +
+  scale_fill_viridis(option = "H", alpha=.7) +
+  labs(title = "Density of Total Streams by Album", 
+       x = "Total Streams in Millions", 
+       y= "Album Name") +
+  theme_ipsum_pub()+
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(0.1, "lines"),
+    strip.text.x = element_text(size = 8)+
+      scale_x_continuous(labels = scales::comma_format(scale = 1))
+  )
+```
+
+As we analyzed this graph, we saw that "Lover" was her most popular song because the median of popularity was the highest. We can also see that "1989" had the many songs with very high total streams We can infer that "1989" had some "one hit.
+
+```{r}
+#| warning: false
+swift |>
+  ggplot(aes(x = danceability, y = acousticness, color = energy)) + 
+  geom_point() +
+  labs(title = "Comparison of the Three Attributes", 
+       x = "Danceability", 
+       y = "Acousticness", 
+       color = "Energy") +
+  scale_color_viridis(option = "E") +  
+  theme_ipsum_es()
+```
+
+While looking at the three attributes of Taylor Swift Songs, We found that only some of the variables are related. We can see that as acousticness goes up, Energy goes down. Also, We can see that danceability doesn't have a huge effect on acousticness or Energy
+
+## Model
+
+```{r}
+# Multiple Linear Regression Model
+mlr.swift <- lm(total_streams ~ duration_ms + acousticness + energy + danceability + explicit + featuring, data=swift)
+summary(mlr.swift)
+
+# Model coefficients
+coefficients(mlr.swift) 
+
+# Anova of Model
+anova(mlr.swift) 
+```
+
+The R\^2 is extremely low for this model, meaning very little variability in total streams is explained by our explanatory variables.
+
+Our explanatory variables appear to not have a linear relationship with total streams, meaning we should look at other methods to accurately predict future song success (Logistic Regression, etc.) We decided to perform an ANOVA to look at the different albums that Taylor Swift has produced and see if any particular album yielded higher streaming figures than others. We wanted to also study the explicitness of songs and if that had any impact on the popularity of the song.
+
+```{r}
+#Anova for comparing albums and explicitness of songs
+aov.swift <- lm(total_streams ~ album_name + explicit, data=swift)
+anova(aov.swift)
+```
+
+Because the p-value is significant, we concluded that the album a song released in is significant, but whether a song is explicit or not has no bearing on how popular it becomes.
+
+## Communicate
+
+Throughout our study, we were able to prove that some variables were correlated with song popularity. Song duration, acousticness, energy, and danceability all resulted in a change of total number of streams for Taylor Swift. 
+
+**Limitations:**
+
+When we performed our Multiple Linear Regression, we had an R\^2 value 0f 0.04, which is extremely low. Because of that, we concluded that there wasn\'t much of a correlation between \"danceability\", \"energy\", \"acousticness\" and our streaming totals. Either that was the case, or there wasn\'t a linear relationship.
+
+One other limitation that we had was that our data was not time series. This would be much more helpful for our analysis because we wouldn\'t have the lurking factor of albums being out for longer, thus getting more total streams. If the data was time series, we could have created a graph of popularity over time.
+
+The are obviously various factors that explain a song's popularity, but it is hard to quantify a catchy tune. One thing is for certain: Taylor Swift knows how to make hits, and she isn't showing any signs of slowing down.
